@@ -13,6 +13,7 @@ EC2.describe_instance = lambda instance_id: EC2.describe_instances(InstanceIds=[
 AUTOSCALING = boto3.client('autoscaling', region_name="eu-west-1")
 AUTOSCALING.describe_launch_configuration = lambda launch_config_name: AUTOSCALING.describe_launch_configurations(LaunchConfigurationNames=[launch_config_name])['LaunchConfigurations'][0]
 
+
 def _boto_tags_to_dict(tags):
     """Convert the Tags in boto format into a usable dict
 
@@ -21,6 +22,7 @@ def _boto_tags_to_dict(tags):
     {'foo': 'bar', 'ham': 'spam'}
     """
     return {item['Key']: item['Value'] for item in tags}
+
 
 def generate_launch_specification(launch_config, instance_to_replace):
     iam_profile_lc = launch_config['IamInstanceProfile']
@@ -53,6 +55,7 @@ def generate_launch_specification(launch_config, instance_to_replace):
         launch_specification["EbsOptimized"] = launch_config['EbsOptimized']
 
     return launch_specification
+
 
 def get_network_specification(launch_config, instance_to_replace):
     # FIXME: support multiple interfaces
@@ -104,7 +107,7 @@ class ReplacementPolicy(object):
             msg += " No instances will be replaced because "
             if self.min_on_demand:
                 msg += ("the number of on-demand instances would "
-                       "fall below the minimum.")
+                        "fall below the minimum.")
             else:
                 msg += " all instances are already spotted."
         msg = msg.format(asg=self.asg_name, on_demand=num_on_demand_instances,
@@ -193,15 +196,18 @@ class Spotnik(object):
 
         launch_specification, replaced_instance_details, bid_price = policy.decide_replacement()
 
-        response = EC2.request_spot_instances(DryRun=False, SpotPrice=bid_price,
+        response = EC2.request_spot_instances(
+            DryRun=False, SpotPrice=bid_price,
             LaunchSpecification=launch_specification)
 
         spot_request_id = response['SpotInstanceRequests'][0]['SpotInstanceRequestId']
         logging.info("New spot request %r for ASG %r", spot_request_id, self.asg_name)
 
-        EC2.create_tags(Resources=[spot_request_id],
-                Tags=[{'Key': 'spotnik', 'Value': self.asg['AutoScalingGroupName']},
-                      {'Key': 'spotnik-will-replace', 'Value': replaced_instance_details['InstanceId']}])
+        spot_request_tags = [
+            {'Key': 'spotnik', 'Value': self.asg['AutoScalingGroupName']},
+            {'Key': 'spotnik-will-replace', 'Value': replaced_instance_details['InstanceId']}]
+        EC2.create_tags(Resources=[spot_request_id], Tags=spot_request_tags)
+
 
 def main():
     spotnik_asgs = Spotnik.get_spotnik_asgs()
@@ -228,4 +234,3 @@ def main():
 if __name__ == "__main__":
     main()
     sys.exit(0)
-
