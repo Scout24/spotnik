@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+from __future__ import print_function, absolute_import, division
+
 import sys
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -145,8 +147,6 @@ class Spotnik(object):
         for request in requests:
             if request['State'] not in ('open', 'active'):
                 continue
-            print "SpotInstanceRequestId", request['SpotInstanceRequestId']
-            print "InstanceId", request.get('InstanceId', "no instance")
             return request, request.get('InstanceId')
         return None, None
 

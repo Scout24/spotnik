@@ -1,3 +1,5 @@
+from __future__ import print_function, absolute_import, division
+
 import unittest2
 
 from spotnik.spotnik import _boto_tags_to_dict, ReplacementPolicy
