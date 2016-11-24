@@ -1,0 +1,11 @@
+region: eu-west-1
+tags:
+  usecase: spotnik
+  segment: infraops
+stacks:
+  SimpleElbAppSpotnikIntegrationtest:
+    template-url: templates/simple_elb_app.yaml
+    parameters:
+        vpcId: "|Ref|vpc.id"
+        subnetIds: "|Ref|vpc.subnets"
+        amiId: 'ami-509dd623'

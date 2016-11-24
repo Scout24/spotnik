@@ -1,0 +1,145 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Simple ec2 instances with ELB for spotnik integrationtest
+Parameters:
+  amiId:
+    Description: 'https://aws.amazon.com/de/amazon-linux-ami/'
+    Type: AWS::EC2::Image::Id
+  subnetIds:
+    ConstraintDescription: comma separated list of subnet-ids
+    Description: Subnet IDs
+    Type: List<AWS::EC2::Subnet::Id>
+  vpcId:
+    ConstraintDescription: must begin with vpc- and can contain only alphanumeric characters
+    Description: VPC ID
+    Type: AWS::EC2::VPC::Id
+Resources:
+
+  # enable connection draining to not to loose user requests on updates / maintenance
+  elb:
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+    Properties:
+      CrossZone: true
+      ConnectionDrainingPolicy:
+        Enabled: true
+        Timeout: 30
+      HealthCheck:
+        HealthyThreshold: "5"
+        Interval: "5"
+        Target: TCP:22
+        Timeout: "3"
+        UnhealthyThreshold: "2"
+      Listeners:
+        - InstancePort: "22"
+          InstanceProtocol: TCP
+          LoadBalancerPort: "22"
+          Protocol: TCP
+      SecurityGroups:
+      - Ref: elbSecurityGroup
+      Subnets:
+        Ref: subnetIds
+
+  # allow access to the elb on port 22 from everywhere
+  elbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ELB
+      VpcId:
+        Ref: vpcId
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          FromPort: "22"
+          ToPort: "22"
+          IpProtocol: tcp
+
+  # instances allow ingress traffic from elbSecurityGroup on port 8080 and 8081
+  ec2InstanceSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: "Allow TCP Network Traffic on Port 22"
+        VpcId: "|Ref|vpcId"
+        SecurityGroupIngress:
+          - IpProtocol: "tcp"
+            FromPort: 22
+            ToPort: 22
+            SourceSecurityGroupId: "|Ref|elbSecurityGroup"
+
+  # autoscaling uses creation and update policies to gracefully manage instances by waiting on them to send a cfn-signal
+  asg:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    CreationPolicy:
+      ResourceSignal:
+        Count: 2
+        Timeout: PT10M
+    UpdatePolicy:
+      AutoScalingReplacingUpdate:
+        WillReplace: true
+      AutoScalingScheduledAction:
+        IgnoreUnmodifiedGroupSizeProperties: true
+    Properties:
+      VPCZoneIdentifier:
+        Ref: subnetIds
+      Cooldown: "10"
+      HealthCheckGracePeriod: "600"
+      HealthCheckType: ELB
+      LoadBalancerNames:
+        - "|Ref|elb"
+      LaunchConfigurationName: "|Ref|launchConfiguration"
+      MaxSize: 6
+      MinSize: 2
+      DesiredCapacity: 2
+      MetricsCollection:
+        - Granularity: 1Minute
+      Tags:
+      - Key: spotnik
+        Value: integrationtest
+        PropagateAtLaunch: 'true'
+
+  # contains the instances blueprint
+  launchConfiguration:
+    Type: "AWS::AutoScaling::LaunchConfiguration"
+    Properties:
+      AssociatePublicIpAddress: true
+      SecurityGroups:
+        - "|Ref|ec2InstanceSecurityGroup"
+      ImageId: "|Ref|amiId"
+      InstanceType: "t2.micro"
+      IamInstanceProfile: "|ref|ec2InstanceProfile"
+      UserData:
+        Fn::Base64:
+          Fn::Join:
+          - ''
+          - - "#!/bin/bash -ve\n"
+            - "# Signal success\n"
+            - "/opt/aws/bin/cfn-signal -e $? "
+            - "         --stack "
+            - Ref: AWS::StackName
+            - "         --resource asg "
+            - "         --region "
+            - Ref: AWS::Region
+            - "\n"
+
+
+  # attaches a role to an instance
+  ec2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+      - Ref: ec2Role
+
+  # role defining AWS API permissions for the ec2 instances
+  ec2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action:
+          - sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+        Version: "2012-10-17"
+      ManagedPolicyArns:
+        -  arn:aws:iam::aws:policy/AmazonEC2ReadOnlyAccess
+
