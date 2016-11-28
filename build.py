@@ -10,7 +10,7 @@ use_plugin("python.integrationtest")
 
 
 name = "spotnik"
-default_task = "publish"
+default_task = "analyze"
 version = "0.1"
 
 @init
