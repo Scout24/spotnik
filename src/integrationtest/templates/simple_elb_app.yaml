@@ -93,6 +93,12 @@ Resources:
       - Key: spotnik
         Value: integrationtest
         PropagateAtLaunch: 'true'
+      - Key: spotnik-min-on-demand-instances
+        Value: '1'
+        PropagateAtLaunch: 'true'
+      - Key: spotnik-bid-price
+        Value: '1.00'
+        PropagateAtLaunch: 'true'
 
   # contains the instances blueprint
   launchConfiguration:
