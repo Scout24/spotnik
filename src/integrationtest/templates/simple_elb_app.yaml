@@ -51,7 +51,7 @@ Resources:
           ToPort: "22"
           IpProtocol: tcp
 
-  # instances allow ingress traffic from elbSecurityGroup on port 8080 and 8081
+  # instances allow ingress traffic from elbSecurityGroup on port 22
   ec2InstanceSecurityGroup:
       Type: AWS::EC2::SecurityGroup
       Properties:
@@ -118,7 +118,6 @@ Resources:
             - Ref: AWS::Region
             - "\n"
 
-
   # attaches a role to an instance
   ec2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -142,4 +141,3 @@ Resources:
         Version: "2012-10-17"
       ManagedPolicyArns:
         -  arn:aws:iam::aws:policy/AmazonEC2ReadOnlyAccess
-

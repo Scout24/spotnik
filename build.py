@@ -16,9 +16,13 @@ version = "0.1"
 @init
 def set_properties(project):
     project.set_property('coverage_break_build', False)
+    project.set_property('integrationtest_inherit_environment', True)
+
 
     project.depends_on('boto3')
     project.build_depends_on('unittest2')
+    project.build_depends_on('cfn-sphere')
+
 
 @init(environments='teamcity')
 def set_properties_for_teamcity_builds(project):
