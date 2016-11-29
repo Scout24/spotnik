@@ -16,27 +16,33 @@ class SpotnikTests(unittest2.TestCase):
         self.assert_service_is_available()
 
         # First run of spotnik must create exactly one new spot request.
-        num_requests_before = self.get_num_spot_requests()
-        main()
-        # The API of EC2 needs some time before the spot requests shows up.
-        time.sleep(30)
-        num_requests_after = self.get_num_spot_requests()
-        delta = num_requests_after - num_requests_before
-        self.assertEqual(delta, 1)
-        # is service still available
-        self.assert_service_is_available()
+        self.assert_spotnik_request_instances(1)
 
-        main()
-        self.assert_service_is_available()
-        time.sleep(15)
-        self.assert_service_is_available()
+        # second run of spotnik should attach the running spot instance to the asg
+        self.assert_spotnik_request_instances(0)
         elb_dns_name, asg_name = self.get_cf_output()
         asg = AUTOSCALING.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])['AutoScalingGroups'][0]
         on_demand_instances, spot_instances = ReplacementPolicy(asg).get_instances()
         self.assertEqual(len(on_demand_instances), 1)
         self.assertEqual(len(spot_instances), 1)
 
+        # Third run of spotnik should do nothing because number of ondemand instances would fall below minimum.
+        self.assert_spotnik_request_instances(0)
+
         self.delete_application_stack()
+
+    def assert_spotnik_request_instances(self, amount):
+        num_requests_before = self.get_num_spot_requests()
+        main()
+        # The API of EC2 needs some time before the spot requests shows up.
+        time.sleep(30)
+        num_requests_after = self.get_num_spot_requests()
+        delta = num_requests_after - num_requests_before
+        self.assertEqual(delta, amount)
+        # is service still available
+        self.assert_service_is_available()
+
+
 
     def assert_service_is_available(self):
         elb_dns_name, asg_name = self.get_cf_output()
