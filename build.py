@@ -17,6 +17,7 @@ version = "0.1"
 def set_properties(project):
     project.set_property('coverage_break_build', False)
     project.set_property('integrationtest_inherit_environment', True)
+    project.set_property('integrationtest_always_verbose', True)
 
 
     project.depends_on('boto3')

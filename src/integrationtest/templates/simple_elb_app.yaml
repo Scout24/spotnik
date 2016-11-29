@@ -147,3 +147,12 @@ Resources:
         Version: "2012-10-17"
       ManagedPolicyArns:
         -  arn:aws:iam::aws:policy/AmazonEC2ReadOnlyAccess
+Outputs:
+  asgName:
+    Description: "ARN of autoscaling group"
+    Value:
+      Ref: asg
+  elbDnsName:
+    Description: "DNS name of the elb"
+    Value: '|GetAtt|elb|DNSName'
+
