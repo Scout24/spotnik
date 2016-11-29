@@ -178,11 +178,15 @@ class Spotnik(object):
         #   - temporarily increase the MaxSize with AUTOSCALING.update_auto_scaling_group()
         #   or
         #   - detach the old instance before attaching the new one
+        current_max_size = self.asg['MaxSize']
+        AUTOSCALING.update_auto_scaling_group(AutoScalingGroupName=self.asg_name, MaxSize=current_max_size + 1)
+        AUTOSCALING.attach_instances(InstanceIds=[spot_instance_id],
+                                     AutoScalingGroupName=self.asg_name)
         AUTOSCALING.detach_instances(InstanceIds=[instance_id],
                                      AutoScalingGroupName=self.asg_name,
                                      ShouldDecrementDesiredCapacity=True)
-        AUTOSCALING.attach_instances(InstanceIds=[spot_instance_id],
-                                     AutoScalingGroupName=self.asg_name)
+        AUTOSCALING.update_auto_scaling_group(AutoScalingGroupName=self.asg_name, MaxSize=current_max_size)
+
         EC2.terminate_instances(InstanceIds=[instance_id])
 
     @staticmethod
