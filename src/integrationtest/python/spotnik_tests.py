@@ -61,6 +61,7 @@ class SpotnikTests(unittest2.TestCase):
     def create_application_stack(self):
         call("cf delete --confirm src/integrationtest/integrationtest_stacks.yaml", shell=True)
         check_call("cf sync --confirm src/integrationtest/integrationtest_stacks.yaml", shell=True)
+        time.sleep(120)
 
     def delete_application_stack(self):
         check_call("cf delete --confirm src/integrationtest/integrationtest_stacks.yaml", shell=True)
