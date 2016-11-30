@@ -99,6 +99,9 @@ Resources:
       - Key: spotnik-bid-price
         Value: '1.00'
         PropagateAtLaunch: 'true'
+      - Key: spotnik-instance-type
+        Value: 'm3.large'
+        PropagateAtLaunch: 'true'
 
   # contains the instances blueprint
   launchConfiguration:

@@ -11,7 +11,7 @@ from spotnik.spotnik import main, EC2, AUTOSCALING, ReplacementPolicy
 from subprocess import check_call, call
 
 class SpotnikTests(unittest2.TestCase):
-    def test_foo(self):
+    def test_spotnik_main(self):
         self.create_application_stack()
         self.assert_service_is_available()
 
@@ -25,6 +25,7 @@ class SpotnikTests(unittest2.TestCase):
         on_demand_instances, spot_instances = ReplacementPolicy(asg).get_instances()
         self.assertEqual(len(on_demand_instances), 1)
         self.assertEqual(len(spot_instances), 1)
+        self.assertEqual(spot_instances[0]['InstanceType'], 'm3.large')
 
         # Third run of spotnik should do nothing because number of ondemand instances would fall below minimum.
         self.assert_spotnik_request_instances(0)
@@ -41,8 +42,6 @@ class SpotnikTests(unittest2.TestCase):
         self.assertEqual(delta, amount)
         # is service still available
         self.assert_service_is_available()
-
-
 
     def assert_service_is_available(self):
         elb_dns_name, asg_name = self.get_cf_output()

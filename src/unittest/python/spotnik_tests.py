@@ -17,8 +17,8 @@ class SpotnikTests(unittest2.TestCase):
 
 class ReplacementPolicyTests(unittest2.TestCase):
     def setUp(self):
-        fake_asg = {'AutoScalingGroupName': 'thename', 'Tags': []}
-        self.policy = ReplacementPolicy(fake_asg)
+        self.fake_asg = {'AutoScalingGroupName': 'thename', 'Tags': []}
+        self.policy = ReplacementPolicy(self.fake_asg)
 
     def test_is_replacement_needed_all_spot_no_on_demand(self):
         self.policy.get_instances = lambda: ([], ['spot1', 'spot2'])
@@ -47,3 +47,22 @@ class ReplacementPolicyTests(unittest2.TestCase):
 
         self.policy.get_instances = lambda: (['od1', 'od2', 'od3'], ['spot1'])
         self.assertEqual(self.policy.is_replacement_needed(), True)
+
+    def test_decide_instance_type_defaults_to_none(self):
+        self.assertIs(self.policy._decide_instance_type(), None)
+
+    def test_decide_instance_type_uses_tag(self):
+        self.fake_asg['Tags'] = [{'Key': 'spotnik-instance-type', 'Value': 'm3.large'}]
+        self.policy = ReplacementPolicy(self.fake_asg)
+
+        self.assertEqual(self.policy._decide_instance_type(), "m3.large")
+
+    def test_decide_instance_type_supports_multiple_types(self):
+        # Must be tolerant towards the separator:
+        config = "ham, spam,eggs bacon"
+
+        self.fake_asg['Tags'] = [{'Key': 'spotnik-instance-type', 'Value': config}]
+        self.policy = ReplacementPolicy(self.fake_asg)
+
+        self.assertIn(self.policy._decide_instance_type(),
+                      ("ham", "spam", "eggs", "bacon"))

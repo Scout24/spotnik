@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 from __future__ import print_function, absolute_import, division
 
+import random
+import re
 import sys
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -24,7 +26,8 @@ def _boto_tags_to_dict(tags):
     return {item['Key']: item['Value'] for item in tags}
 
 
-def generate_launch_specification(launch_config, instance_to_replace):
+def generate_launch_specification(launch_config, instance_to_replace, new_instance_type=None):
+    new_instance_type = new_instance_type or launch_config['InstanceType']
     iam_profile_lc = launch_config['IamInstanceProfile']
     if iam_profile_lc.startswith('arn:aws:'):
         iam_profile = {'Arn': iam_profile_lc}
@@ -34,8 +37,7 @@ def generate_launch_specification(launch_config, instance_to_replace):
     launch_specification = {
         'ImageId': launch_config['ImageId'],
         'UserData': launch_config['UserData'],  # FIXME: test empty userdata
-        # FIXME: make dynamic
-        'InstanceType': "m4.large", #launch_config['InstanceType'],
+        'InstanceType': new_instance_type,
         'Placement': {'AvailabilityZone': instance_to_replace['Placement']['AvailabilityZone']},
         'IamInstanceProfile': iam_profile,
         'Monitoring': dict(launch_config['InstanceMonitoring']),
@@ -116,19 +118,29 @@ class ReplacementPolicy(object):
         logging.info(msg)
         return replacement_needed
 
+    def _decide_instance_type(self):
+        spotnik_instance_type = self.asg_tags.get('spotnik-instance-type', '')
+
+        # Allow both comma and/or space separated instance types.
+        instance_types = re.split(",? *", spotnik_instance_type)
+        return random.choice(instance_types) or None
+
     def decide_replacement(self):
         # decide which instance to replace
         replaced_instance_details = EC2.describe_instance(self.on_demand_instances[0]['InstanceId'])
         logging.info("replaced_instance_details: %s\n", pformat(replaced_instance_details))
+
         # decide with what to replace it
         launch_config_name = self.asg['LaunchConfigurationName']
         launch_config = AUTOSCALING.describe_launch_configuration(launch_config_name)
         logging.info("launch_config: %s\n", pformat(launch_config))
 
-        launch_specification = generate_launch_specification(launch_config, replaced_instance_details)
+        instance_type = self._decide_instance_type()
+        launch_specification = generate_launch_specification(launch_config, replaced_instance_details,
+                                                             new_instance_type=instance_type)
         logging.info("launch_specification: %s\n", pformat(launch_specification))
-        # decide how much we want to pay
 
+        # decide how much we want to pay
         bid_price = self.asg_tags['spotnik-bid-price']
 
         return launch_specification, replaced_instance_details, bid_price
