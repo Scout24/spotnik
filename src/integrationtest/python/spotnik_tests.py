@@ -52,17 +52,21 @@ class SpotnikTests(unittest2.TestCase):
         return len(response['SpotInstanceRequests'])
 
     def is_service_available(self):
+        sock = None
         try:
-            elb_dns_name, asg_name = self.get_cf_output()
+            elb_dns_name, _ = self.get_cf_output()
             port = 22
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.connect((elb_dns_name, port))
-            s.sendall('Hello, world')
-            data = s.recv(1024)
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(0.5)
+            sock.connect((elb_dns_name, port))
+            sock.sendall('Hello, world')
+            data = sock.recv(1024)
             print(data)
-            s.close()
         except Exception:
             return False
+        finally:
+            if sock:
+                sock.close()
         return 'SSH' in data.upper()
 
     def create_application_stack(self):
