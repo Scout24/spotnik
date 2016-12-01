@@ -162,7 +162,17 @@ class Spotnik(object):
         for request in requests:
             if request['State'] not in ('open', 'active'):
                 continue
-            return request, request.get('InstanceId')
+
+            instance_id = request.get('InstanceId')
+            if instance_id is None:
+                return request, None
+
+            details = EC2.describe_instance(instance_id)
+            state = details['State']['Name']
+            logging.info("Found spot instance %s which is in state %s.", instance_id, state)
+            if state == 'running':
+                return request, instance_id
+            return request, None
         return None, None
 
     def tag_new_instance(self, new_instance_id, old_instance):
@@ -203,6 +213,8 @@ class Spotnik(object):
 
     @staticmethod
     def untag_spot_request(spot_request):
+        # Remove tags so that self.get_pending_spot_resources() does not find
+        # this spot request again.
         EC2.delete_tags(Resources=[spot_request['SpotInstanceRequestId']], Tags=[{'Key': 'spotnik'}])
 
     def make_spot_request(self):
@@ -235,7 +247,6 @@ def main():
         logging.info("Processing ASG %r: \n%s\n", spotnik.asg_name, pformat(asg))
         spot_request, spot_instance_id = spotnik.get_pending_spot_resources()
         if spot_instance_id:
-            # TOOD is instance fully running yet?
             logging.info("Instance %r is ready to be attached to ASG %r", spot_instance_id, spotnik.asg_name)
             spotnik.attach_spot_instance(spot_instance_id, spot_request)
             spotnik.untag_spot_request(spot_request)
