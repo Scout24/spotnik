@@ -38,3 +38,4 @@ def set_properties_for_teamcity_builds(project):
     project.set_property('teamcity_output', True)
     project.default_task = ['clean', 'install_build_dependencies', 'publish']
     project.set_property('install_dependencies_index_url', os.environ.get('PYPIPROXY_URL'))
+    project.set_property('integrationtest_additional_environment', {'SKIP_PORT22_TESTS': 'true'})

@@ -4,6 +4,7 @@ from __future__ import print_function, absolute_import, division
 import socket
 
 import boto3
+import os
 import time
 import unittest2
 
@@ -52,6 +53,10 @@ class SpotnikTests(unittest2.TestCase):
         return len(response['SpotInstanceRequests'])
 
     def is_service_available(self):
+        if os.environ.get('SKIP_PORT22_TESTS') == 'true':
+            print("Skipping service availability test, as configured")
+            return True
+
         sock = None
         try:
             elb_dns_name, _ = self.get_cf_output()
@@ -77,6 +82,9 @@ class SpotnikTests(unittest2.TestCase):
             counter += 1
             time.sleep(1)
         self.assert_service_is_available()
+
+        if os.environ.get('SKIP_PORT22_TESTS') == 'true':
+            time.sleep(300)
 
     def delete_application_stack(self):
         check_call("cf delete --confirm src/integrationtest/integrationtest_stacks.yaml", shell=True)
