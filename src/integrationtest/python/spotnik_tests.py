@@ -14,7 +14,6 @@ from subprocess import check_call, call
 class SpotnikTests(unittest2.TestCase):
     def test_spotnik_main(self):
         self.create_application_stack()
-        self.assert_service_is_available()
 
         # First run of spotnik must create exactly one new spot request.
         self.assert_spotnik_request_instances(1)
