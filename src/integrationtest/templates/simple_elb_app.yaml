@@ -158,4 +158,8 @@ Outputs:
   elbDnsName:
     Description: "DNS name of the elb"
     Value: '|GetAtt|elb|DNSName'
+  elbName:
+    Description: "Name of the elb"
+    Value:
+      Ref: elb
 
