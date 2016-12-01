@@ -27,7 +27,6 @@ def set_properties(project):
     project.set_property('integrationtest_always_verbose', True)
 
     project.set_property('bucket_name', bucket_name)
-    project.set_property('template_files', [('cfn/templates', 'spotnik-lambda.yaml')])
 
     project.depends_on('boto3')
     project.build_depends_on('unittest2')
