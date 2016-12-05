@@ -22,6 +22,7 @@ class SpotnikTests(unittest2.TestCase):
         # second run of spotnik should attach the running spot instance to the asg
         self.assert_spotnik_request_instances(0)
         _, asg_name = self.get_cf_output()
+        time.sleep(10)
         asg = AUTOSCALING.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])['AutoScalingGroups'][0]
         on_demand_instances, spot_instances = ReplacementPolicy(asg).get_instances()
         self.assertEqual(len(on_demand_instances), 1)
