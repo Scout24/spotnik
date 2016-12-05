@@ -31,6 +31,13 @@ class SpotnikTests(unittest2.TestCase):
         # Third run of spotnik should do nothing because number of ondemand instances would fall below minimum.
         self.assert_spotnik_request_instances(0)
 
+        # configute spotnik to not keep any on demand instances
+        AUTOSCALING.delete_tags(Tags=[{'ResourceId': asg_name, 'ResourceType': 'auto-scaling-group','Key': 'spotnik-min-on-demand-instances'}])
+        self.assert_spotnik_request_instances(1)
+
+        # all instances have been spotified
+        self.assert_spotnik_request_instances(0)
+
         self.delete_application_stack()
 
     def assert_spotnik_request_instances(self, amount):
