@@ -84,7 +84,7 @@ Resources:
       LoadBalancerNames:
         - "|Ref|elb"
       LaunchConfigurationName: "|Ref|launchConfiguration"
-      MaxSize: 6
+      MaxSize: 2
       MinSize: 2
       DesiredCapacity: 2
       MetricsCollection:
