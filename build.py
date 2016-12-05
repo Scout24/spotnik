@@ -29,6 +29,7 @@ def set_properties(project):
     project.set_property('bucket_name', bucket_name)
 
     project.depends_on('boto3')
+    project.depends_on('pils')
     project.build_depends_on('unittest2')
     project.build_depends_on('cfn-sphere')
 

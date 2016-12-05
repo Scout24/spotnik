@@ -5,6 +5,10 @@ import random
 import re
 import sys
 import logging
+
+from datetime import datetime
+from pils import retry
+
 logging.basicConfig(level=logging.INFO)
 
 import boto3
@@ -116,7 +120,26 @@ class ReplacementPolicy(object):
                          spot=len(spot_instances),
                          min_on_demand=self.min_on_demand)
         logging.info(msg)
-        return replacement_needed
+        if not replacement_needed:
+            return False
+
+        for instance in self.on_demand_instances:
+            if self.should_instance_be_replaced_now(instance):
+                return True
+        return False
+
+    @staticmethod
+    def should_instance_be_replaced_now(instance):
+        """Return True if given instance should be replaced right now
+
+        EC2 instances are paid by the hour. Partial hours count as full hours.
+        Therefor, an instance that has been running for 5 minutes should not
+        be replaced, but run for another ~40 minutes.
+        """
+        instance_launch_time = instance['LaunchTime']
+        time_running = datetime.now() - instance_launch_time
+        minutes_over_hour = (time_running.seconds % 3600) / 60
+        return 45 < minutes_over_hour < 55
 
     def _decide_instance_type(self):
         spotnik_instance_type = self.asg_tags.get('spotnik-instance-type', '')
@@ -231,10 +254,14 @@ class Spotnik(object):
         spot_request_id = response['SpotInstanceRequests'][0]['SpotInstanceRequestId']
         logging.info("New spot request %r for ASG %r", spot_request_id, self.asg_name)
 
-        spot_request_tags = [
+        tags = [
             {'Key': 'spotnik', 'Value': self.asg['AutoScalingGroupName']},
             {'Key': 'spotnik-will-replace', 'Value': replaced_instance_details['InstanceId']}]
-        EC2.create_tags(Resources=[spot_request_id], Tags=spot_request_tags)
+        self.tag_spot_request(spot_request_id, tags)
+
+    @retry(attempts=3, delay=3)
+    def tag_spot_request(self, spot_request_id, tags):
+        EC2.create_tags(Resources=[spot_request_id], Tags=tags)
 
 
 def main():

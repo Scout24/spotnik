@@ -13,6 +13,13 @@ from subprocess import check_call, call
 
 
 class SpotnikTests(unittest2.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # Normally, spotnik only replaces instances that have been running
+        # for 45 to 55 minutes. This would make the integration test too
+        # long, so deactivate this feature.
+        ReplacementPolicy.should_instance_be_replaced_now = lambda x, y: True
+
     def test_spotnik_main(self):
         self.create_application_stack()
 

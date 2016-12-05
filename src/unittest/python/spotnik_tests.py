@@ -2,6 +2,7 @@ from __future__ import print_function, absolute_import, division
 
 import unittest2
 
+from datetime import datetime, timedelta
 from spotnik.spotnik import _boto_tags_to_dict, ReplacementPolicy
 
 class SpotnikTests(unittest2.TestCase):
@@ -19,6 +20,8 @@ class ReplacementPolicyTests(unittest2.TestCase):
     def setUp(self):
         self.fake_asg = {'AutoScalingGroupName': 'thename', 'Tags': []}
         self.policy = ReplacementPolicy(self.fake_asg)
+        self.policy._should_instance_be_replaced_now = self.policy.should_instance_be_replaced_now
+        self.policy.should_instance_be_replaced_now = lambda x: True
 
     def test_is_replacement_needed_all_spot_no_on_demand(self):
         self.policy.get_instances = lambda: ([], ['spot1', 'spot2'])
@@ -44,9 +47,20 @@ class ReplacementPolicyTests(unittest2.TestCase):
         fake_asg = {'AutoScalingGroupName': 'thename',
                     'Tags': [{'Key': 'spotnik-min-on-demand-instances', 'Value': '2'}]}
         self.policy = ReplacementPolicy(fake_asg)
+        self.policy.should_instance_be_replaced_now = lambda x: True
 
         self.policy.get_instances = lambda: (['od1', 'od2', 'od3'], ['spot1'])
         self.assertEqual(self.policy.is_replacement_needed(), True)
+
+    def test_should_instance_be_replaced_now(self):
+        self.policy.should_instance_be_replaced_now = self.policy._should_instance_be_replaced_now
+
+        instance = {'LaunchTime': datetime.now()}
+        self.assertFalse(self.policy.should_instance_be_replaced_now(instance))
+        instance = {'LaunchTime': datetime.now() - timedelta(minutes=47)}
+        self.assertTrue(self.policy.should_instance_be_replaced_now(instance))
+        instance = {'LaunchTime': datetime.now() - timedelta(minutes=57)}
+        self.assertFalse(self.policy.should_instance_be_replaced_now(instance))
 
     def test_decide_instance_type_defaults_to_none(self):
         self.assertIs(self.policy._decide_instance_type(), None)
@@ -66,3 +80,4 @@ class ReplacementPolicyTests(unittest2.TestCase):
 
         self.assertIn(self.policy._decide_instance_type(),
                       ("ham", "spam", "eggs", "bacon"))
+
