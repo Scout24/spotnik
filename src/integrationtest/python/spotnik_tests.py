@@ -4,12 +4,18 @@ from __future__ import print_function, absolute_import, division
 import socket
 
 import boto3
+import mock
 import os
 import time
 import unittest2
 
-from spotnik.spotnik import main, EC2, AUTOSCALING, ReplacementPolicy
+from spotnik.spotnik import main, ReplacementPolicy
 from subprocess import check_call, call
+
+import boto3
+
+EC2 = boto3.client('ec2', region_name='eu-west-1')
+AUTOSCALING = boto3.client('autoscaling', region_name='eu-west-1')
 
 
 class SpotnikTests(unittest2.TestCase):
@@ -31,7 +37,9 @@ class SpotnikTests(unittest2.TestCase):
         _, _, asg_name = self.get_cf_output()
         time.sleep(10)
         asg = AUTOSCALING.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])['AutoScalingGroups'][0]
-        on_demand_instances, spot_instances = ReplacementPolicy(asg).get_instances()
+        fake_spotnik = mock.Mock()
+        fake_spotnik.ec2_client = EC2
+        on_demand_instances, spot_instances = ReplacementPolicy(asg, fake_spotnik).get_instances()
         self.assertEqual(len(on_demand_instances), 1)
         self.assertEqual(len(spot_instances), 1)
         self.assertEqual(spot_instances[0]['InstanceType'], 'm3.large')

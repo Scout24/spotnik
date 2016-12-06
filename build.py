@@ -32,6 +32,7 @@ def set_properties(project):
     project.depends_on('pils')
     project.build_depends_on('unittest2')
     project.build_depends_on('cfn-sphere')
+    project.build_depends_on('mock')
 
 
 @init(environments='teamcity')

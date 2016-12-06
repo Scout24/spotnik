@@ -4,6 +4,7 @@ from __future__ import print_function, absolute_import, division
 import random
 import re
 import sys
+import threading
 import logging
 
 from datetime import datetime
@@ -13,11 +14,6 @@ logging.basicConfig(level=logging.INFO)
 
 import boto3
 from pprint import pformat
-
-EC2 = boto3.client('ec2', region_name="eu-west-1")
-EC2.describe_instance = lambda instance_id: EC2.describe_instances(InstanceIds=[instance_id])['Reservations'][0]['Instances'][0]
-AUTOSCALING = boto3.client('autoscaling', region_name="eu-west-1")
-AUTOSCALING.describe_launch_configuration = lambda launch_config_name: AUTOSCALING.describe_launch_configurations(LaunchConfigurationNames=[launch_config_name])['LaunchConfigurations'][0]
 
 
 def _boto_tags_to_dict(tags):
@@ -75,11 +71,14 @@ def get_network_specification(launch_config, instance_to_replace):
 
 
 class ReplacementPolicy(object):
-    def __init__(self, asg):
+    def __init__(self, asg, spotnik):
         self.asg = asg
         self.asg_name = asg['AutoScalingGroupName']
         self.asg_tags = _boto_tags_to_dict(asg['Tags'])
         self.on_demand_instances = None
+
+        self.spotnik = spotnik
+        self.ec2_client = spotnik.ec2_client
 
         # Keep at least this many on-demand instances in the ASG.
         self.min_on_demand = int(self.asg_tags.get('spotnik-min-on-demand-instances', 0))
@@ -89,7 +88,7 @@ class ReplacementPolicy(object):
         spot_instances = []
         on_demand_instances = []
         for instance in instances:
-            response = EC2.describe_instances(InstanceIds=[instance['InstanceId']])
+            response = self.ec2_client.describe_instances(InstanceIds=[instance['InstanceId']])
             description = response['Reservations'][0]['Instances'][0]
             if description.get('InstanceLifecycle') == "spot":
                 spot_instances.append(description)
@@ -150,12 +149,12 @@ class ReplacementPolicy(object):
 
     def decide_replacement(self):
         # decide which instance to replace
-        replaced_instance_details = EC2.describe_instance(self.on_demand_instances[0]['InstanceId'])
+        replaced_instance_details = self.spotnik.describe_instance(self.on_demand_instances[0]['InstanceId'])
         logging.info("replaced_instance_details: %s\n", pformat(replaced_instance_details))
 
         # decide with what to replace it
         launch_config_name = self.asg['LaunchConfigurationName']
-        launch_config = AUTOSCALING.describe_launch_configuration(launch_config_name)
+        launch_config = self.spotnik.describe_launch_configuration(launch_config_name)
         logging.info("launch_config: %s\n", pformat(launch_config))
 
         instance_type = self._decide_instance_type()
@@ -170,16 +169,25 @@ class ReplacementPolicy(object):
 
 
 class Spotnik(object):
-    def __init__(self, asg):
+    def __init__(self, region_name, asg):
         self.asg = asg
         self.asg_name = asg['AutoScalingGroupName']
 
+        self.ec2_client = boto3.client('ec2', region_name=region_name)
+        self.asg_client = boto3.client('autoscaling', region_name=region_name)
+
+    def describe_instance(self, instance_id):
+        response = self.ec2_client.describe_instances(InstanceIds=[instance_id])
+        return response['Reservations'][0]['Instances'][0]
+
+    def describe_launch_configuration(self, launch_config_name):
+        response = self.asg_client.describe_launch_configurations(LaunchConfigurationNames=[launch_config_name])
+        return response['LaunchConfigurations'][0]
+
     def get_pending_spot_resources(self):
         logging.info("Searching pending resources of ASG %r", self.asg_name)
-        response = EC2.describe_spot_instance_requests(Filters=[
+        response = self.ec2_client.describe_spot_instance_requests(Filters=[
                 {'Name': 'tag-value', 'Values': [self.asg_name]}])
-        #response = EC2.describe_spot_instance_requests(Filters=[
-        #        {'Name': 'tag:key=value', 'Values': ["spotnik=" + self.asg_name]}])
         requests = response['SpotInstanceRequests']
 
         for request in requests:
@@ -190,7 +198,7 @@ class Spotnik(object):
             if instance_id is None:
                 return request, None
 
-            details = EC2.describe_instance(instance_id)
+            details = self.describe_instance(instance_id)
             state = details['State']['Name']
             logging.info("Found spot instance %s which is in state %s.", instance_id, state)
             if state == 'running':
@@ -199,12 +207,13 @@ class Spotnik(object):
         return None, None
 
     def tag_new_instance(self, new_instance_id, old_instance):
-        EC2.create_tags(Resources=[new_instance_id],
+        self.ec2_client.create_tags(Resources=[new_instance_id],
                         Tags=[old_instance['Tags']])
 
     @staticmethod
-    def get_spotnik_asgs():
-        asgs = AUTOSCALING.describe_auto_scaling_groups()['AutoScalingGroups']
+    def get_spotnik_asgs(region_name):
+        client = boto3.client('autoscaling', region_name=region_name)
+        asgs = client.describe_auto_scaling_groups()['AutoScalingGroups']
         spotnik_asgs = []
         for asg in asgs:
             tags = asg['Tags']
@@ -224,30 +233,29 @@ class Spotnik(object):
         #   or
         #   - detach the old instance before attaching the new one
         current_max_size = self.asg['MaxSize']
-        AUTOSCALING.update_auto_scaling_group(AutoScalingGroupName=self.asg_name, MaxSize=current_max_size + 1)
-        AUTOSCALING.attach_instances(InstanceIds=[spot_instance_id],
+        self.asg_client.update_auto_scaling_group(AutoScalingGroupName=self.asg_name, MaxSize=current_max_size + 1)
+        self.asg_client.attach_instances(InstanceIds=[spot_instance_id],
                                      AutoScalingGroupName=self.asg_name)
-        AUTOSCALING.detach_instances(InstanceIds=[instance_id],
+        self.asg_client.detach_instances(InstanceIds=[instance_id],
                                      AutoScalingGroupName=self.asg_name,
                                      ShouldDecrementDesiredCapacity=True)
-        AUTOSCALING.update_auto_scaling_group(AutoScalingGroupName=self.asg_name, MaxSize=current_max_size)
+        self.asg_client.update_auto_scaling_group(AutoScalingGroupName=self.asg_name, MaxSize=current_max_size)
 
-        EC2.terminate_instances(InstanceIds=[instance_id])
+        self.ec2_client.terminate_instances(InstanceIds=[instance_id])
 
-    @staticmethod
-    def untag_spot_request(spot_request):
+    def untag_spot_request(self, spot_request):
         # Remove tags so that self.get_pending_spot_resources() does not find
         # this spot request again.
-        EC2.delete_tags(Resources=[spot_request['SpotInstanceRequestId']], Tags=[{'Key': 'spotnik'}])
+        self.ec2_client.delete_tags(Resources=[spot_request['SpotInstanceRequestId']], Tags=[{'Key': 'spotnik'}])
 
     def make_spot_request(self):
-        policy = ReplacementPolicy(self.asg)
+        policy = ReplacementPolicy(self.asg, self)
         if not policy.is_replacement_needed():
             return
 
         launch_specification, replaced_instance_details, bid_price = policy.decide_replacement()
 
-        response = EC2.request_spot_instances(
+        response = self.ec2_client.request_spot_instances(
             DryRun=False, SpotPrice=bid_price,
             LaunchSpecification=launch_specification)
 
@@ -261,28 +269,42 @@ class Spotnik(object):
 
     @retry(attempts=3, delay=3)
     def tag_spot_request(self, spot_request_id, tags):
-        EC2.create_tags(Resources=[spot_request_id], Tags=tags)
+        self.ec2_client.create_tags(Resources=[spot_request_id], Tags=tags)
 
 
 def main():
-    spotnik_asgs = Spotnik.get_spotnik_asgs()
-    #logging.info("will process these ASGs: %s", spotnik_asgs)
-    # TODO: one thread per ASG
-    for asg in spotnik_asgs:
-        spotnik = Spotnik(asg)
+    ec2_client = boto3.client('ec2', region_name='eu-west-1')
+    aws_region_names = [endpoint['RegionName'] for endpoint in ec2_client.describe_regions()['Regions']]
+    for region_name in aws_region_names:
+        logging.info("Starting thread for AWS region %s", region_name)
+        regional_thread = threading.Thread(target=run_regional_thread, args=(region_name,))
+        regional_thread.start()
 
-        logging.info("Processing ASG %r: \n%s\n", spotnik.asg_name, pformat(asg))
-        spot_request, spot_instance_id = spotnik.get_pending_spot_resources()
-        if spot_instance_id:
-            logging.info("Instance %r is ready to be attached to ASG %r", spot_instance_id, spotnik.asg_name)
-            spotnik.attach_spot_instance(spot_instance_id, spot_request)
-            spotnik.untag_spot_request(spot_request)
-        elif spot_request:
-            logging.info("ASG %r has pending spot request %r.", spotnik.asg_name, spot_request['SpotInstanceRequestId'])
-            # Amazon processing our request, but no instance yet
-            continue
-        else:
-            spotnik.make_spot_request()
+
+def run_regional_thread(region_name):
+    spotnik_asgs = Spotnik.get_spotnik_asgs(region_name)
+    logging.info("Found %d spotnik ASGs in region %s",
+                 len(spotnik_asgs), region_name)
+
+    for asg in spotnik_asgs:
+        asg_thread = threading.Thread(target=run_asg_thread, args=(region_name, asg))
+        asg_thread.start()
+
+def run_asg_thread(region_name, asg):
+    spotnik = Spotnik(region_name, asg)
+
+    logging.info("Processing ASG %r: \n%s\n", spotnik.asg_name, pformat(asg))
+    spot_request, spot_instance_id = spotnik.get_pending_spot_resources()
+    if spot_instance_id:
+        logging.info("Instance %r is ready to be attached to ASG %r", spot_instance_id, spotnik.asg_name)
+        spotnik.attach_spot_instance(spot_instance_id, spot_request)
+        spotnik.untag_spot_request(spot_request)
+    elif spot_request:
+        logging.info("ASG %r has pending spot request %r.", spotnik.asg_name, spot_request['SpotInstanceRequestId'])
+        # Amazon processing our request, but no instance yet
+        return
+    else:
+        spotnik.make_spot_request()
 
 
 if __name__ == "__main__":

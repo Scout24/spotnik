@@ -3,6 +3,9 @@ from __future__ import print_function, absolute_import, division
 import unittest2
 
 from datetime import datetime, timedelta
+
+from mock import Mock
+
 from spotnik.spotnik import _boto_tags_to_dict, ReplacementPolicy
 
 class SpotnikTests(unittest2.TestCase):
@@ -19,7 +22,8 @@ class SpotnikTests(unittest2.TestCase):
 class ReplacementPolicyTests(unittest2.TestCase):
     def setUp(self):
         self.fake_asg = {'AutoScalingGroupName': 'thename', 'Tags': []}
-        self.policy = ReplacementPolicy(self.fake_asg)
+        self.fake_spotnik = Mock()
+        self.policy = ReplacementPolicy(self.fake_asg, self.fake_spotnik)
         self.policy._should_instance_be_replaced_now = self.policy.should_instance_be_replaced_now
         self.policy.should_instance_be_replaced_now = lambda x: True
 
@@ -38,7 +42,7 @@ class ReplacementPolicyTests(unittest2.TestCase):
     def test_is_replacement_needed_min_on_demand_reached(self):
         fake_asg = {'AutoScalingGroupName': 'thename',
                     'Tags': [{'Key': 'spotnik-min-on-demand-instances', 'Value': '2'}]}
-        self.policy = ReplacementPolicy(fake_asg)
+        self.policy = ReplacementPolicy(fake_asg, self.fake_spotnik)
 
         self.policy.get_instances = lambda: (['od1', 'od2'], ['spot1'])
         self.assertEqual(self.policy.is_replacement_needed(), False)
@@ -46,7 +50,7 @@ class ReplacementPolicyTests(unittest2.TestCase):
     def test_is_replacement_needed_min_on_demand_not_reached(self):
         fake_asg = {'AutoScalingGroupName': 'thename',
                     'Tags': [{'Key': 'spotnik-min-on-demand-instances', 'Value': '2'}]}
-        self.policy = ReplacementPolicy(fake_asg)
+        self.policy = ReplacementPolicy(fake_asg, self.fake_spotnik)
         self.policy.should_instance_be_replaced_now = lambda x: True
 
         self.policy.get_instances = lambda: (['od1', 'od2', 'od3'], ['spot1'])
@@ -67,7 +71,7 @@ class ReplacementPolicyTests(unittest2.TestCase):
 
     def test_decide_instance_type_uses_tag(self):
         self.fake_asg['Tags'] = [{'Key': 'spotnik-instance-type', 'Value': 'm3.large'}]
-        self.policy = ReplacementPolicy(self.fake_asg)
+        self.policy = ReplacementPolicy(self.fake_asg, self.fake_spotnik)
 
         self.assertEqual(self.policy._decide_instance_type(), "m3.large")
 
@@ -76,7 +80,7 @@ class ReplacementPolicyTests(unittest2.TestCase):
         config = "ham, spam,eggs bacon"
 
         self.fake_asg['Tags'] = [{'Key': 'spotnik-instance-type', 'Value': config}]
-        self.policy = ReplacementPolicy(self.fake_asg)
+        self.policy = ReplacementPolicy(self.fake_asg, self.fake_spotnik)
 
         self.assertIn(self.policy._decide_instance_type(),
                       ("ham", "spam", "eggs", "bacon"))
