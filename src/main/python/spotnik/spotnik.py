@@ -135,9 +135,7 @@ class ReplacementPolicy(object):
         Therefor, an instance that has been running for 5 minutes should not
         be replaced, but run for another ~40 minutes.
         """
-        instance_launch_time = instance['LaunchTime']
-        time_running = datetime.now() - instance_launch_time
-        minutes_over_hour = (time_running.seconds % 3600) / 60
+        minutes_over_hour = (datetime.utcnow().minute - instance['LaunchTime'].minute) % 60
         return 45 < minutes_over_hour < 55
 
     def _decide_instance_type(self):
