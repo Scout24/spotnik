@@ -19,20 +19,22 @@ AUTOSCALING = boto3.client('autoscaling', region_name='eu-west-1')
 
 
 class SpotnikTests(unittest2.TestCase):
-    @classmethod
-    def setUpClass(cls):
+    def test_spotnik_main(self):
+        self.create_application_stack()
+
+        # First run of spotnik must not create a new spot request,
+        # because freshly launched instances should not be replaced
+        self.assert_spotnik_request_instances(0)
+
         # Normally, spotnik only replaces instances that have been running
         # for 45 to 55 minutes. This would make the integration test too
         # long, so deactivate this feature.
         ReplacementPolicy.should_instance_be_replaced_now = lambda x, y: True
 
-    def test_spotnik_main(self):
-        self.create_application_stack()
-
-        # First run of spotnik must create exactly one new spot request.
+        # Second run of spotnik must create exactly one new spot request.
         self.assert_spotnik_request_instances(1)
 
-        # second run of spotnik should attach the running spot instance to the asg
+        # Third run of spotnik should attach the running spot instance to the asg
         self.assert_spotnik_request_instances(0)
         _, _, asg_name = self.get_cf_output()
         time.sleep(10)
@@ -44,7 +46,7 @@ class SpotnikTests(unittest2.TestCase):
         self.assertEqual(len(spot_instances), 1)
         self.assertEqual(spot_instances[0]['InstanceType'], 'm3.large')
 
-        # Third run of spotnik should do nothing because number of ondemand instances would fall below minimum.
+        # Fourth run of spotnik should do nothing because number of ondemand instances would fall below minimum.
         self.assert_spotnik_request_instances(0)
 
         # configute spotnik to not keep any on demand instances
