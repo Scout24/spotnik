@@ -56,6 +56,21 @@ class ReplacementPolicyTests(unittest2.TestCase):
         self.policy.get_instances = lambda: (['od1', 'od2', 'od3'], ['spot1'])
         self.assertEqual(self.policy.is_replacement_needed(), True)
 
+    def test_is_replacement_needed_checks_all_instances(self):
+        self.policy.should_instance_be_replaced_now = self.policy._should_instance_be_replaced_now
+
+        now = datetime.utcnow()
+        ten_minutes_ago = now - timedelta(minutes=10)
+        fifty_minutes_ago = now -timedelta(minutes=50)
+        # This instance should not be replaced.
+        new_instance = {'InstanceId': 'aaa', 'LaunchTime': ten_minutes_ago}
+        # This instance should be replaced
+        old_instance = {'InstanceId': 'aaa', 'LaunchTime': fifty_minutes_ago}
+
+        self.policy.get_instances = Mock()
+        self.policy.get_instances.return_value = [new_instance, old_instance], []
+        self.assertEqual(self.policy.is_replacement_needed(), True)
+
     def test_should_instance_be_replaced_now(self):
         self.policy.should_instance_be_replaced_now = self.policy._should_instance_be_replaced_now
 
