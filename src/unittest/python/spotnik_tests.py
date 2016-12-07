@@ -71,6 +71,13 @@ class ReplacementPolicyTests(unittest2.TestCase):
         self.policy.get_instances.return_value = [new_instance, old_instance], []
         self.assertEqual(self.policy.is_replacement_needed(), True)
 
+    def test_is_replacement_needed_defaults_to_false(self):
+        # Two on-demand instances, but neither should be replaced right now.
+        self.policy.get_instances = lambda: (['od1', 'od2'], [])
+        self.policy.should_instance_be_replaced_now = lambda x: False
+
+        self.assertEqual(self.policy.is_replacement_needed(), False)
+
     def test_should_instance_be_replaced_now(self):
         self.policy.should_instance_be_replaced_now = self.policy._should_instance_be_replaced_now
 
