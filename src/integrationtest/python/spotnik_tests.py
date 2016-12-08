@@ -55,7 +55,7 @@ class SpotnikTests(unittest2.TestCase):
             raise Exception("Timed out waiting for Spotnik to attach the new instance")
         self.assertEqual(len(on_demand_instances), 1)
         self.assertEqual(len(spot_instances), 1)
-        self.assertEqual(spot_instances[0]['InstanceType'], 'm3.large')
+        self.assertEqual(spot_instances[0]['InstanceType'], 'm3.medium')
 
         # Fourth run of spotnik should do nothing because number of ondemand instances would fall below minimum.
         self.assert_spotnik_request_instances(0)

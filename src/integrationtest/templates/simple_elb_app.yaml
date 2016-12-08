@@ -100,7 +100,7 @@ Resources:
         Value: '1.00'
         PropagateAtLaunch: 'true'
       - Key: spotnik-instance-type
-        Value: 'm3.large'
+        Value: 'm3.medium'
         PropagateAtLaunch: 'true'
 
   # contains the instances blueprint
