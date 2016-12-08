@@ -9,7 +9,8 @@ import os
 import time
 import unittest2
 
-from spotnik.spotnik import main, ReplacementPolicy
+from spotnik import main
+from spotnik.spotnik import ReplacementPolicy
 from subprocess import check_call, call
 
 import boto3
