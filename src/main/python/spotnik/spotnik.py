@@ -1,19 +1,10 @@
-#!/usr/bin/env python
 from __future__ import print_function, absolute_import, division
 
-import sys
-import threading
-import logging
-
 from pils import retry
-
 import boto3
-from pprint import pformat
 
 from .util import _boto_tags_to_dict
 from .replacement_policy import ReplacementPolicy
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)-15s %(levelname)s - %(name)s - %(message)s")
 
 
 class Spotnik(object):
@@ -24,7 +15,7 @@ class Spotnik(object):
         self.ec2_client = boto3.client('ec2', region_name=region_name)
         self.asg_client = boto3.client('autoscaling', region_name=region_name)
 
-        self.logger = logger or logging.getLogger()
+        self.logger = logger
 
     def describe_instance(self, instance_id):
         response = self.ec2_client.describe_instances(InstanceIds=[instance_id])
@@ -120,46 +111,3 @@ class Spotnik(object):
     @retry(attempts=3, delay=3)
     def tag_spot_request(self, spot_request_id, tags):
         self.ec2_client.create_tags(Resources=[spot_request_id], Tags=tags)
-
-
-def main():
-    logger = logging.getLogger('spotnik')
-    ec2_client = boto3.client('ec2', region_name='eu-west-1')
-    aws_region_names = [endpoint['RegionName'] for endpoint in ec2_client.describe_regions()['Regions']]
-    for region_name in aws_region_names:
-        logger.info("Starting thread for AWS region %s", region_name)
-        regional_thread = threading.Thread(target=run_regional_thread, args=(region_name,))
-        regional_thread.start()
-
-
-def run_regional_thread(region_name):
-    logger = logging.getLogger("spotnik." + region_name)
-    spotnik_asgs = Spotnik.get_spotnik_asgs(region_name)
-    logger.info("Found %d spotnik ASGs", len(spotnik_asgs))
-
-    for asg in spotnik_asgs:
-        asg_thread = threading.Thread(target=run_asg_thread, args=(region_name, asg))
-        asg_thread.start()
-
-
-def run_asg_thread(region_name, asg):
-    logger = logging.getLogger("spotnik.%s.%s" % (region_name, asg['AutoScalingGroupName']))
-    spotnik = Spotnik(region_name, asg, logger=logger)
-
-    logger.info("Processing ASG with this config: \n%s", pformat(asg))
-    spot_request, spot_instance_id = spotnik.get_pending_spot_resources()
-    if spot_instance_id:
-        logger.info("Instance %r is ready to be attached to ASG", spot_instance_id)
-        spotnik.attach_spot_instance(spot_instance_id, spot_request)
-        spotnik.untag_spot_request(spot_request)
-    elif spot_request:
-        logger.info("ASG has pending spot request %r.", spot_request['SpotInstanceRequestId'])
-        # Amazon processing our request, but no instance yet
-        return
-    else:
-        spotnik.make_spot_request()
-
-
-if __name__ == "__main__":
-    main()
-    sys.exit(0)
