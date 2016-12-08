@@ -1,6 +1,5 @@
 from __future__ import print_function, absolute_import, division
 
-import logging
 import random
 import re
 from pprint import pformat
@@ -62,6 +61,7 @@ class ReplacementPolicy(object):
 
         self.spotnik = spotnik
         self.ec2_client = spotnik.ec2_client
+        self.logger = spotnik.logger
 
         # Keep at least this many on-demand instances in the ASG.
         self.min_on_demand = int(self.asg_tags.get('spotnik-min-on-demand-instances', 0))
@@ -101,13 +101,15 @@ class ReplacementPolicy(object):
         msg = msg.format(asg=self.asg_name, on_demand=num_on_demand_instances,
                          spot=len(spot_instances),
                          min_on_demand=self.min_on_demand)
-        logging.info(msg)
+        self.logger.info(msg)
         if not replacement_needed:
             return False
 
         for instance in self.on_demand_instances:
             if self.should_instance_be_replaced_now(instance):
+                self.logger.info("Found an instance that is old enough for replacement")
                 return True
+        self.logger.info("None of the instances is old enough for replacement")
         return False
 
     @staticmethod
@@ -131,17 +133,17 @@ class ReplacementPolicy(object):
     def decide_replacement(self):
         # decide which instance to replace
         replaced_instance_details = self.spotnik.describe_instance(self.on_demand_instances[0]['InstanceId'])
-        logging.info("replaced_instance_details: %s\n", pformat(replaced_instance_details))
+        self.logger.info("replaced_instance_details: %s\n", pformat(replaced_instance_details))
 
         # decide with what to replace it
         launch_config_name = self.asg['LaunchConfigurationName']
         launch_config = self.spotnik.describe_launch_configuration(launch_config_name)
-        logging.info("launch_config: %s\n", pformat(launch_config))
+        self.logger.info("launch_config: %s\n", pformat(launch_config))
 
         instance_type = self._decide_instance_type()
         launch_specification = generate_launch_specification(launch_config, replaced_instance_details,
                                                              new_instance_type=instance_type)
-        logging.info("launch_specification: %s\n", pformat(launch_specification))
+        self.logger.info("launch_specification: %s\n", pformat(launch_specification))
 
         # decide how much we want to pay
         bid_price = self.asg_tags['spotnik-bid-price']
