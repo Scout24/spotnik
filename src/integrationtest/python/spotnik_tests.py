@@ -34,14 +34,24 @@ class SpotnikTests(unittest2.TestCase):
         # Second run of spotnik must create exactly one new spot request.
         self.assert_spotnik_request_instances(1)
 
-        # Third run of spotnik should attach the running spot instance to the asg
-        self.assert_spotnik_request_instances(0)
-        _, _, asg_name = self.get_cf_output()
-        time.sleep(10)
-        asg = AUTOSCALING.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])['AutoScalingGroups'][0]
-        fake_spotnik = mock.Mock()
-        fake_spotnik.ec2_client = EC2
-        on_demand_instances, spot_instances = ReplacementPolicy(asg, fake_spotnik).get_instances()
+        # Third run of spotnik should attach the running spot instance to the
+        # asg. But only once the spot instance is in state "running", which
+        # may take a while.
+        for attempt in 1, 2, 3:
+            print("Waiting for spot request to start running... %s" % attempt)
+            self.assert_spotnik_request_instances(0)
+            _, _, asg_name = self.get_cf_output()
+            time.sleep(10)
+            asg = AUTOSCALING.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])['AutoScalingGroups'][0]
+            fake_spotnik = mock.Mock()
+            fake_spotnik.ec2_client = EC2
+            on_demand_instances, spot_instances = ReplacementPolicy(asg, fake_spotnik).get_instances()
+
+            if len(on_demand_instances) == 1:
+                break
+            time.sleep(20)
+        else:
+            raise Exception("Timed out waiting for Spotnik to attach the new instance")
         self.assertEqual(len(on_demand_instances), 1)
         self.assertEqual(len(spot_instances), 1)
         self.assertEqual(spot_instances[0]['InstanceType'], 'm3.large')
