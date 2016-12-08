@@ -49,7 +49,7 @@ class Spotnik(object):
 
     def tag_new_instance(self, new_instance_id, old_instance):
         self.ec2_client.create_tags(Resources=[new_instance_id],
-                        Tags=[old_instance['Tags']])
+                                    Tags=[old_instance['Tags']])
 
     @staticmethod
     def get_spotnik_asgs(region_name):
@@ -76,10 +76,10 @@ class Spotnik(object):
         current_max_size = self.asg['MaxSize']
         self.asg_client.update_auto_scaling_group(AutoScalingGroupName=self.asg_name, MaxSize=current_max_size + 1)
         self.asg_client.attach_instances(InstanceIds=[spot_instance_id],
-                                     AutoScalingGroupName=self.asg_name)
+                                         AutoScalingGroupName=self.asg_name)
         self.asg_client.detach_instances(InstanceIds=[instance_id],
-                                     AutoScalingGroupName=self.asg_name,
-                                     ShouldDecrementDesiredCapacity=True)
+                                         AutoScalingGroupName=self.asg_name,
+                                         ShouldDecrementDesiredCapacity=True)
         self.asg_client.update_auto_scaling_group(AutoScalingGroupName=self.asg_name, MaxSize=current_max_size)
 
         self.ec2_client.terminate_instances(InstanceIds=[instance_id])

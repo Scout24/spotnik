@@ -1,5 +1,6 @@
 from __future__ import print_function, absolute_import, division
 
+
 def _boto_tags_to_dict(tags):
     """Convert the Tags in boto format into a usable dict
 
