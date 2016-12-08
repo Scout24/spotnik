@@ -9,7 +9,7 @@ import os
 import time
 import unittest2
 
-from spotnik import main
+from spotnik.main import main
 from spotnik.spotnik import ReplacementPolicy
 from subprocess import check_call, call
 
