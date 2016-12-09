@@ -80,7 +80,7 @@ Resources:
     Type: AWS::AutoScaling::AutoScalingGroup
     CreationPolicy:
       ResourceSignal:
-        Count: 2
+        Count: "|Ref|minAsgSize"
         Timeout: PT10M
     UpdatePolicy:
       AutoScalingReplacingUpdate:
