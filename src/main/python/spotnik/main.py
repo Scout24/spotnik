@@ -18,13 +18,16 @@ def handler(*_):
     main()
 
 
+def get_aws_region_names():
+    ec2_client = boto3.client('ec2', region_name='eu-west-1')
+    return [endpoint['RegionName'] for endpoint in ec2_client.describe_regions()['Regions']]
+
+
 def main():
     logger = logging.getLogger('spotnik')
     logger.setLevel(logging.INFO)
 
-    ec2_client = boto3.client('ec2', region_name='eu-west-1')
-    aws_region_names = [endpoint['RegionName'] for endpoint in ec2_client.describe_regions()['Regions']]
-    for region_name in aws_region_names:
+    for region_name in get_aws_region_names():
         logger.info("Starting thread for AWS region %s", region_name)
         regional_thread = threading.Thread(target=run_regional_thread, args=(region_name,))
         regional_thread.start()
