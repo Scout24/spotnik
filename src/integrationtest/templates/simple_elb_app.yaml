@@ -12,6 +12,14 @@ Parameters:
     ConstraintDescription: must begin with vpc- and can contain only alphanumeric characters
     Description: VPC ID
     Type: AWS::EC2::VPC::Id
+  minAsgSize:
+    Description: 'Minimum number of instances in the ASG'
+    Type: Number
+    Default: 2
+  maxAsgSize:
+    Description: 'Maximum number of instances in the ASG'
+    Type: Number
+    Default: 2
 Resources:
 
   # enable connection draining to not to loose user requests on updates / maintenance
@@ -84,9 +92,9 @@ Resources:
       LoadBalancerNames:
         - "|Ref|elb"
       LaunchConfigurationName: "|Ref|launchConfiguration"
-      MaxSize: 2
-      MinSize: 2
-      DesiredCapacity: 2
+      MaxSize: "|Ref|maxAsgSize"
+      MinSize: "|Ref|minAsgSize"
+      DesiredCapacity: "|Ref|minAsgSize"
       MetricsCollection:
         - Granularity: 1Minute
       Tags:
