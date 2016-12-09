@@ -9,6 +9,8 @@ from pprint import pformat
 
 from .spotnik import Spotnik
 
+_ERROR_IN_MAIN = False
+
 
 def handler(*_):
     formatter = logging.Formatter(fmt="%(asctime)-15s %(levelname)s - %(name)s - %(message)s")
@@ -27,20 +29,33 @@ def main():
     logger = logging.getLogger('spotnik')
     logger.setLevel(logging.INFO)
 
+    regional_threads = []
     for region_name in get_aws_region_names():
         logger.info("Starting thread for AWS region %s", region_name)
         regional_thread = threading.Thread(target=run_regional_thread, args=(region_name,))
         regional_thread.start()
+        regional_threads.append(regional_thread)
+
+    for regional_thread in regional_threads:
+        regional_thread.join()
+
+    if _ERROR_IN_MAIN:
+        raise Exception("One of the worker threads failed")
 
 
 def run_regional_thread(region_name):
     logger = logging.getLogger("spotnik." + region_name)
-    spotnik_asgs = Spotnik.get_spotnik_asgs(region_name)
-    logger.info("Found %d spotnik ASGs", len(spotnik_asgs))
+    try:
+        spotnik_asgs = Spotnik.get_spotnik_asgs(region_name)
+        logger.info("Found %d spotnik ASGs", len(spotnik_asgs))
 
-    for asg in spotnik_asgs:
-        asg_thread = threading.Thread(target=run_asg_thread, args=(region_name, asg))
-        asg_thread.start()
+        for asg in spotnik_asgs:
+            asg_thread = threading.Thread(target=run_asg_thread, args=(region_name, asg))
+            asg_thread.start()
+    except Exception:
+        logger.exception("Thread failed:")
+        global _ERROR_IN_MAIN
+        _ERROR_IN_MAIN = True
 
 
 def run_asg_thread(region_name, asg):
