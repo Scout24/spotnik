@@ -6,6 +6,9 @@ import boto3
 from .util import _boto_tags_to_dict
 from .replacement_policy import ReplacementPolicy
 
+# Any ASG that has a tag with this key will be handled by spotnik.
+SPOTNIK_TAG_KEY = "spotnik"
+
 
 class Spotnik(object):
     def __init__(self, region_name, asg, logger=None):
@@ -59,7 +62,7 @@ class Spotnik(object):
         for asg in asgs:
             tags = asg['Tags']
             tag_keys = [tag['Key'] for tag in tags]
-            if 'spotnik' in tag_keys:
+            if SPOTNIK_TAG_KEY in tag_keys:
                 spotnik_asgs.append(asg)
         return spotnik_asgs
 
@@ -87,7 +90,8 @@ class Spotnik(object):
     def untag_spot_request(self, spot_request):
         # Remove tags so that self.get_pending_spot_resources() does not find
         # this spot request again.
-        self.ec2_client.delete_tags(Resources=[spot_request['SpotInstanceRequestId']], Tags=[{'Key': 'spotnik'}])
+        self.ec2_client.delete_tags(Resources=[spot_request['SpotInstanceRequestId']],
+                                    Tags=[{'Key': SPOTNIK_TAG_KEY}])
 
     def make_spot_request(self):
         policy = ReplacementPolicy(self.asg, self)
@@ -104,7 +108,7 @@ class Spotnik(object):
         self.logger.info("New spot request %r was created", spot_request_id)
 
         tags = [
-            {'Key': 'spotnik', 'Value': self.asg['AutoScalingGroupName']},
+            {'Key': SPOTNIK_TAG_KEY, 'Value': self.asg['AutoScalingGroupName']},
             {'Key': 'spotnik-will-replace', 'Value': replaced_instance_details['InstanceId']}]
         self.tag_spot_request(spot_request_id, tags)
 

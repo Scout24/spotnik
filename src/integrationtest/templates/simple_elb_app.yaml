@@ -20,6 +20,10 @@ Parameters:
     Description: 'Maximum number of instances in the ASG'
     Type: Number
     Default: 2
+  spotnikTagKey:
+    Description: 'The tag applied to the ASG to mark it for spotnik'
+    Type: String
+    Default: 'spotnik'
 Resources:
 
   # enable connection draining to not to loose user requests on updates / maintenance
@@ -98,7 +102,7 @@ Resources:
       MetricsCollection:
         - Granularity: 1Minute
       Tags:
-      - Key: spotnik
+      - Key: "|Ref|spotnikTagKey"
         Value: integrationtest
         PropagateAtLaunch: 'true'
       - Key: spotnik-min-on-demand-instances
