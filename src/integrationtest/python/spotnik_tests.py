@@ -55,6 +55,18 @@ class SpotnikTests(SpotnikTestsBase):
         self.autoscaling.delete_tags(Tags=[{'ResourceId': asg_name, 'ResourceType': 'auto-scaling-group','Key': 'spotnik-min-on-demand-instances'}])
         self.assert_spotnik_request_instances(1)
 
+        # Second spot instance is attached to ASG and gets untagged.
+        for attempt in 1, 2, 3:
+            print("Waiting for spot request to start running... %s" % attempt)
+            try:
+                self.assert_spotnik_request_instances(-1)
+                break
+            except Exception:
+                time.sleep(20)
+                continue
+        else:
+            raise Exception("Timed out waiting for Spotnik to attach the new instance")
+
         # all instances have been spotified
         self.assert_spotnik_request_instances(0)
 
