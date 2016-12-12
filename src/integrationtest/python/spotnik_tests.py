@@ -16,7 +16,7 @@ from subprocess import check_call, call
 import boto3
 
 
-class SpotnikTests(unittest2.TestCase):
+class SpotnikTestsBase(unittest2.TestCase):
     region_name = 'eu-west-1'
     stack_config = 'src/integrationtest/integrationtest_stacks.yaml'
 
@@ -24,55 +24,6 @@ class SpotnikTests(unittest2.TestCase):
     def setUpClass(cls):
         cls.ec2 = boto3.client('ec2', region_name=cls.region_name)
         cls.autoscaling = boto3.client('autoscaling', region_name=cls.region_name)
-
-    def test_spotnik_main(self):
-        self.create_application_stack()
-
-        # First run of spotnik must not create a new spot request,
-        # because freshly launched instances should not be replaced
-        self.assert_spotnik_request_instances(0)
-
-        # Normally, spotnik only replaces instances that have been running
-        # for 45 to 55 minutes. This would make the integration test too
-        # long, so deactivate this feature.
-        ReplacementPolicy.should_instance_be_replaced_now = lambda x, y: True
-
-        # Second run of spotnik must create exactly one new spot request.
-        self.assert_spotnik_request_instances(1)
-
-        # Third run of spotnik should attach the running spot instance to the
-        # asg. But only once the spot instance is in state "running", which
-        # may take a while.
-        for attempt in 1, 2, 3:
-            print("Waiting for spot request to start running... %s" % attempt)
-            self.assert_spotnik_request_instances(0)
-            _, _, asg_name = self.get_cf_output()
-            time.sleep(10)
-            asg = self.autoscaling.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])['AutoScalingGroups'][0]
-            fake_spotnik = mock.Mock()
-            fake_spotnik.ec2_client = self.ec2
-            on_demand_instances, spot_instances = ReplacementPolicy(asg, fake_spotnik).get_instances()
-
-            if len(on_demand_instances) == 1:
-                break
-            time.sleep(20)
-        else:
-            raise Exception("Timed out waiting for Spotnik to attach the new instance")
-        self.assertEqual(len(on_demand_instances), 1)
-        self.assertEqual(len(spot_instances), 1)
-        self.assertEqual(spot_instances[0]['InstanceType'], 'm3.medium')
-
-        # Fourth run of spotnik should do nothing because number of ondemand instances would fall below minimum.
-        self.assert_spotnik_request_instances(0)
-
-        # configute spotnik to not keep any on demand instances
-        self.autoscaling.delete_tags(Tags=[{'ResourceId': asg_name, 'ResourceType': 'auto-scaling-group','Key': 'spotnik-min-on-demand-instances'}])
-        self.assert_spotnik_request_instances(1)
-
-        # all instances have been spotified
-        self.assert_spotnik_request_instances(0)
-
-        self.delete_application_stack()
 
     def assert_spotnik_request_instances(self, amount):
         num_requests_before = self.get_num_spot_requests()
@@ -154,6 +105,57 @@ class SpotnikTests(unittest2.TestCase):
         outputs = response['Stacks'][0]['Outputs']
         outputs = {item['OutputKey']: item['OutputValue'] for item in outputs}
         return outputs['elbName'], outputs['elbDnsName'], outputs['asgName']
+
+
+class SpotnikTests(SpotnikTestsBase):
+    def test_spotnik_main(self):
+        self.create_application_stack()
+
+        # First run of spotnik must not create a new spot request,
+        # because freshly launched instances should not be replaced
+        self.assert_spotnik_request_instances(0)
+
+        # Normally, spotnik only replaces instances that have been running
+        # for 45 to 55 minutes. This would make the integration test too
+        # long, so deactivate this feature.
+        ReplacementPolicy.should_instance_be_replaced_now = lambda x, y: True
+
+        # Second run of spotnik must create exactly one new spot request.
+        self.assert_spotnik_request_instances(1)
+
+        # Third run of spotnik should attach the running spot instance to the
+        # asg. But only once the spot instance is in state "running", which
+        # may take a while.
+        for attempt in 1, 2, 3:
+            print("Waiting for spot request to start running... %s" % attempt)
+            self.assert_spotnik_request_instances(0)
+            _, _, asg_name = self.get_cf_output()
+            time.sleep(10)
+            asg = self.autoscaling.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])['AutoScalingGroups'][0]
+            fake_spotnik = mock.Mock()
+            fake_spotnik.ec2_client = self.ec2
+            on_demand_instances, spot_instances = ReplacementPolicy(asg, fake_spotnik).get_instances()
+
+            if len(on_demand_instances) == 1:
+                break
+            time.sleep(20)
+        else:
+            raise Exception("Timed out waiting for Spotnik to attach the new instance")
+        self.assertEqual(len(on_demand_instances), 1)
+        self.assertEqual(len(spot_instances), 1)
+        self.assertEqual(spot_instances[0]['InstanceType'], 'm3.medium')
+
+        # Fourth run of spotnik should do nothing because number of ondemand instances would fall below minimum.
+        self.assert_spotnik_request_instances(0)
+
+        # configute spotnik to not keep any on demand instances
+        self.autoscaling.delete_tags(Tags=[{'ResourceId': asg_name, 'ResourceType': 'auto-scaling-group','Key': 'spotnik-min-on-demand-instances'}])
+        self.assert_spotnik_request_instances(1)
+
+        # all instances have been spotified
+        self.assert_spotnik_request_instances(0)
+
+        self.delete_application_stack()
 
 
 if __name__ == "__main__":
