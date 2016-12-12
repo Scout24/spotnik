@@ -15,11 +15,15 @@ from subprocess import check_call, call
 
 import boto3
 
-EC2 = boto3.client('ec2', region_name='eu-west-1')
-AUTOSCALING = boto3.client('autoscaling', region_name='eu-west-1')
-
 
 class SpotnikTests(unittest2.TestCase):
+    region_name = 'eu-west-1'
+
+    @classmethod
+    def setUpClass(cls):
+        cls.ec2 = boto3.client('ec2', region_name=cls.region_name)
+        cls.autoscaling = boto3.client('autoscaling', region_name=cls.region_name)
+
     def test_spotnik_main(self):
         self.create_application_stack()
 
@@ -43,9 +47,9 @@ class SpotnikTests(unittest2.TestCase):
             self.assert_spotnik_request_instances(0)
             _, _, asg_name = self.get_cf_output()
             time.sleep(10)
-            asg = AUTOSCALING.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])['AutoScalingGroups'][0]
+            asg = self.autoscaling.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])['AutoScalingGroups'][0]
             fake_spotnik = mock.Mock()
-            fake_spotnik.ec2_client = EC2
+            fake_spotnik.ec2_client = self.ec2
             on_demand_instances, spot_instances = ReplacementPolicy(asg, fake_spotnik).get_instances()
 
             if len(on_demand_instances) == 1:
@@ -61,7 +65,7 @@ class SpotnikTests(unittest2.TestCase):
         self.assert_spotnik_request_instances(0)
 
         # configute spotnik to not keep any on demand instances
-        AUTOSCALING.delete_tags(Tags=[{'ResourceId': asg_name, 'ResourceType': 'auto-scaling-group','Key': 'spotnik-min-on-demand-instances'}])
+        self.autoscaling.delete_tags(Tags=[{'ResourceId': asg_name, 'ResourceType': 'auto-scaling-group','Key': 'spotnik-min-on-demand-instances'}])
         self.assert_spotnik_request_instances(1)
 
         # all instances have been spotified
@@ -72,7 +76,7 @@ class SpotnikTests(unittest2.TestCase):
     def assert_spotnik_request_instances(self, amount):
         num_requests_before = self.get_num_spot_requests()
         main()
-        # The API of EC2 needs some time before the spot requests shows up.
+        # The API of self.ec2 needs some time before the spot requests shows up.
         time.sleep(30)
         num_requests_after = self.get_num_spot_requests()
         delta = num_requests_after - num_requests_before
@@ -83,11 +87,9 @@ class SpotnikTests(unittest2.TestCase):
     def assert_service_is_available(self):
         self.assertTrue(self.is_fully_up_and_running())
 
-    @staticmethod
-    def get_num_spot_requests():
-        response = EC2.describe_spot_instance_requests()
+    def get_num_spot_requests(self):
+        response = self.ec2.describe_spot_instance_requests()
         return len(response['SpotInstanceRequests'])
-
 
     def is_port22_reachable(self):
         sock = None
@@ -109,7 +111,7 @@ class SpotnikTests(unittest2.TestCase):
 
     def is_one_asg_instance_healthy(self):
         elb_name, _, _ = self.get_cf_output()
-        client = boto3.client('elb', region_name='eu-west-1')
+        client = boto3.client('elb', region_name=self.region_name)
         response = client.describe_instance_health(LoadBalancerName=elb_name)
 
         for instance_state in response['InstanceStates']:
@@ -130,7 +132,6 @@ class SpotnikTests(unittest2.TestCase):
 
         return self.is_port22_reachable()
 
-
     def create_application_stack(self):
         call("cf delete --confirm src/integrationtest/integrationtest_stacks.yaml", shell=True)
         check_call("cf sync --confirm src/integrationtest/integrationtest_stacks.yaml", shell=True)
@@ -146,9 +147,8 @@ class SpotnikTests(unittest2.TestCase):
     def delete_application_stack(self):
         check_call("cf delete --confirm src/integrationtest/integrationtest_stacks.yaml", shell=True)
 
-    @staticmethod
-    def get_cf_output():
-        client = boto3.client('cloudformation', region_name="eu-west-1")
+    def get_cf_output(self):
+        client = boto3.client('cloudformation', region_name=self.region_name)
         response = client.describe_stacks(StackName='SimpleElbAppSpotnikIntegrationtest')
         outputs = response['Stacks'][0]['Outputs']
         outputs = {item['OutputKey']: item['OutputValue'] for item in outputs}
