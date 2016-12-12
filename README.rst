@@ -52,4 +52,5 @@ Spotnik understands the following tags on ASGs:
 * **spotnik-bid-price**: How much to bid for each spot instance (US$ per hour). Required parameter.
 * **spotnik-instance-type**: Which instance type(s) to use for spot-requests, e.g. "m4.large, c4.large". Defaults to the instance type of the replaced instance.
 * **spotnik-min-on-demand-instances**: How many on-demand instances Spotnik should leave in the ASG. Defaults to 0.
- * Keep in mind that a scale down of the cluster may remove the on-demand instances, depending on the ASG's Termination Policy.
+
+  - Keep in mind that a scale down of the cluster may remove the on-demand instances, depending on the ASG's Termination Policy.
