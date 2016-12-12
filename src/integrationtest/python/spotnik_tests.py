@@ -30,19 +30,20 @@ class SpotnikTests(SpotnikTestsBase):
         # may take a while.
         for attempt in 1, 2, 3:
             print("Waiting for spot request to start running... %s" % attempt)
-            self.assert_spotnik_request_instances(0)
-            _, _, asg_name = self.get_cf_output()
-            time.sleep(10)
-            asg = self.autoscaling.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])['AutoScalingGroups'][0]
-            fake_spotnik = mock.Mock()
-            fake_spotnik.ec2_client = self.ec2
-            on_demand_instances, spot_instances = ReplacementPolicy(asg, fake_spotnik).get_instances()
-
-            if len(on_demand_instances) == 1:
+            try:
+                self.assert_spotnik_request_instances(-1)
                 break
-            time.sleep(20)
+            except Exception:
+                time.sleep(20)
+                continue
         else:
             raise Exception("Timed out waiting for Spotnik to attach the new instance")
+        _, _, asg_name = self.get_cf_output()
+        asg = self.autoscaling.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])['AutoScalingGroups'][0]
+        fake_spotnik = mock.Mock()
+        fake_spotnik.ec2_client = self.ec2
+        on_demand_instances, spot_instances = ReplacementPolicy(asg, fake_spotnik).get_instances()
+
         self.assertEqual(len(on_demand_instances), 1)
         self.assertEqual(len(spot_instances), 1)
         self.assertEqual(spot_instances[0]['InstanceType'], 'm3.medium')

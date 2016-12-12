@@ -8,6 +8,7 @@ import unittest2
 from subprocess import check_call, call
 
 from spotnik.main import main
+from spotnik.util import _boto_tags_to_dict
 
 
 class SpotnikTestsBase(unittest2.TestCase):
@@ -20,11 +21,11 @@ class SpotnikTestsBase(unittest2.TestCase):
         cls.autoscaling = boto3.client('autoscaling', region_name=cls.region_name)
 
     def assert_spotnik_request_instances(self, amount):
-        num_requests_before = self.get_num_spot_requests()
+        num_requests_before = self.get_num_pending_spot_requests()
         main()
-        # The API of self.ec2 needs some time before the spot requests shows up.
+        # The API of EC2 needs some time before the spot requests shows up.
         time.sleep(30)
-        num_requests_after = self.get_num_spot_requests()
+        num_requests_after = self.get_num_pending_spot_requests()
         delta = num_requests_after - num_requests_before
         self.assertEqual(delta, amount)
         # is service still available
@@ -33,9 +34,14 @@ class SpotnikTestsBase(unittest2.TestCase):
     def assert_service_is_available(self):
         self.assertTrue(self.is_fully_up_and_running())
 
-    def get_num_spot_requests(self):
+    def get_num_pending_spot_requests(self):
         response = self.ec2.describe_spot_instance_requests()
-        return len(response['SpotInstanceRequests'])
+        spot_requests = response['SpotInstanceRequests']
+        request_tags = [_boto_tags_to_dict(request.get('Tags', {})) for request in spot_requests]
+
+        _, _, asg_name = self.get_cf_output()
+
+        return sum([asg_name in tags.values() for tags in request_tags])
 
     def is_port22_reachable(self):
         sock = None
