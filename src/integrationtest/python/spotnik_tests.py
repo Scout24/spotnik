@@ -18,6 +18,7 @@ import boto3
 
 class SpotnikTests(unittest2.TestCase):
     region_name = 'eu-west-1'
+    stack_config = 'src/integrationtest/integrationtest_stacks.yaml'
 
     @classmethod
     def setUpClass(cls):
@@ -133,8 +134,8 @@ class SpotnikTests(unittest2.TestCase):
         return self.is_port22_reachable()
 
     def create_application_stack(self):
-        call("cf delete --confirm src/integrationtest/integrationtest_stacks.yaml", shell=True)
-        check_call("cf sync --confirm src/integrationtest/integrationtest_stacks.yaml", shell=True)
+        call("cf delete --confirm " + self.stack_config, shell=True)
+        check_call("cf sync --confirm " + self.stack_config, shell=True)
         counter = 0
         while counter < 300 and not self.is_fully_up_and_running():
             counter += 1
@@ -145,7 +146,7 @@ class SpotnikTests(unittest2.TestCase):
             time.sleep(300)
 
     def delete_application_stack(self):
-        check_call("cf delete --confirm src/integrationtest/integrationtest_stacks.yaml", shell=True)
+        check_call("cf delete --confirm " + self.stack_config, shell=True)
 
     def get_cf_output(self):
         client = boto3.client('cloudformation', region_name=self.region_name)
