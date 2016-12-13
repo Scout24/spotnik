@@ -41,8 +41,35 @@ Two things are needed to get Spotnik running in an AWS account. First, you need 
 
 Deploy the Spotnik Stack
 ------------------------
+Login to your AWS Console and click on the button below to deploy the required CloudFormation stack.
+[![Launch](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/new?stackName=spotnik&templateURL=https://s3-eu-west-1.amazonaws.com/spotnik-distribution/spotnik-lambda.json)
 
-TODO
+OR
+
+If you prefer `awscli <http://docs.aws.amazon.com/cli/latest/userguide/cli-chap-welcome.html>`_ to deploy spotnik in your account (you must have credentials):
+	```
+	aws cloudformation create-stack \
+	--stack-name spotnik \
+	--template-url https://s3-eu-west-1.amazonaws.com/spotnik-distribution/spotnik-lambda.json \
+	--capabilities CAPABILITY_IAM \
+	--parameters ParameterKey=codeDistributionBucketName,ParameterValue=spotnik-distribution ParameterKey=spotnikZip,ParameterValue=latest/spotnik.zip ParameterKey=ScheduleExpressionCron,ParameterValue='cron(0/2 * * * ? *)'
+	```
+
+OR
+
+You could also download the CloudFormation template and change it according to your wishes:
+	```
+	aws s3 cp s3://spotnik-distribution/spotnik-lambda.json .
+	```
+
+To deploy the local CloudFormation template use the option "--template-body" instead of --template-url:
+	```
+	aws cloudformation create-stack \
+	--stack-name spotnik \
+	--template-body ./spotnik-lambda.json \
+	--capabilities CAPABILITY_IAM \
+	--parameters ParameterKey=codeDistributionBucketName,ParameterValue=spotnik-distribution ParameterKey=spotnikZip,ParameterValue=latest/spotnik.zip ParameterKey=ScheduleExpressionCron,ParameterValue='cron(0/2 * * * ? *)'
+	```
 
 Apply Tags to the ASG
 ---------------------
