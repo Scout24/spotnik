@@ -12,7 +12,12 @@ Spotnik
 =========
 Spotnik is a tool for users of AWS (Amazon Web Services) to save money on their EC2 instances. This is done by gradually replacing the regular on-demand instances of an auto scaling group (ASG) with `spot instances <https://aws.amazon.com/ec2/spot/>`_. Most types of spot instances cost 80-90% less than their on-demand counter parts, so considerable savings are possible. Spotnik was greatly inspired by `autospotting <https://github.com/cristim/autospotting>`_ and implements the same basic idea, albeit in a different way.
 
-Spotnik is currently under development and not yet ready for production use.
+On the following page you can see the possible Spot Instance types and the current prices:  `Spot Instances Pricing <https://aws.amazon.com/ec2/spot/pricing/>`_
+
+In comparison, the on-demand costs: `www.ec2instances.info <http://www.ec2instances.info/?region=eu-west-1>`_
+
+
+## Spotnik is currently under development and not yet ready for production use. ##
 
 How does it work?
 =================
@@ -84,7 +89,7 @@ Spotnik understands the following tags on ASGs:
 
 * **spotnik**: Regardless of the tag's value, every ASG with this tag will be handled by Spotnik
 * **spotnik-bid-price**: How much to bid for each spot instance (US$ per hour). Required parameter.
-* **spotnik-instance-type**: Which instance type(s) to use for spot-requests, e.g. "m4.large, c4.large". Defaults to the instance type of the replaced instance.
+* **spotnik-instance-type**: Which instance type(s) to use for spot-requests, e.g. "m4.large, c4.large". Defaults to the instance type of the replaced instance. Check `Spot Instances Pricing <https://aws.amazon.com/ec2/spot/pricing/>`_ to see which Instance Types are configurable.
 * **spotnik-min-on-demand-instances**: How many on-demand instances Spotnik should leave in the ASG. Defaults to 0.
 
   - Keep in mind that a scale down of the cluster may remove the on-demand instances, depending on the ASG's Termination Policy.
