@@ -10,6 +10,9 @@ from spotnik_tests_base import SpotnikTestsBase
 
 
 class SpotnikTests(SpotnikTestsBase):
+    stack_config = 'src/integrationtest/integrationtest_stacks.yaml'
+    stack_name = "SimpleElbAppSpotnikIntegrationtest"
+
     def test_spotnik_main(self):
         self.create_application_stack()
 

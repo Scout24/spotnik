@@ -13,7 +13,10 @@ from spotnik.util import _boto_tags_to_dict
 
 class SpotnikTestsBase(unittest2.TestCase):
     region_name = 'eu-west-1'
-    stack_config = 'src/integrationtest/integrationtest_stacks.yaml'
+
+    # Must be set by child classes
+    stack_config = None
+    stack_name = None
 
     @classmethod
     def setUpClass(cls):
@@ -101,7 +104,7 @@ class SpotnikTestsBase(unittest2.TestCase):
 
     def get_cf_output(self):
         client = boto3.client('cloudformation', region_name=self.region_name)
-        response = client.describe_stacks(StackName='SimpleElbAppSpotnikIntegrationtest')
+        response = client.describe_stacks(StackName=self.stack_name)
         outputs = response['Stacks'][0]['Outputs']
         outputs = {item['OutputKey']: item['OutputValue'] for item in outputs}
         return outputs['elbName'], outputs['elbDnsName'], outputs['asgName']
