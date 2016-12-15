@@ -7,6 +7,7 @@ import time
 import unittest2
 from subprocess import check_call, call
 
+import spotnik
 from spotnik.main import main
 from spotnik.util import _boto_tags_to_dict
 
@@ -22,6 +23,10 @@ class SpotnikTestsBase(unittest2.TestCase):
     def setUpClass(cls):
         cls.ec2 = boto3.client('ec2', region_name=cls.region_name)
         cls.autoscaling = boto3.client('autoscaling', region_name=cls.region_name)
+
+        # Direct our Spotnik to the correct ASG. By convention, the tag is
+        # identical to the name of the stack.
+        spotnik.spotnik.SPOTNIK_TAG_KEY = cls.stack_name
 
     def assert_spotnik_request_instances(self, amount):
         num_requests_before = self.get_num_pending_spot_requests()

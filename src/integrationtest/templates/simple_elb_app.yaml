@@ -21,9 +21,8 @@ Parameters:
     Type: Number
     Default: 2
   spotnikTagKey:
-    Description: 'The tag applied to the ASG to mark it for spotnik'
+    Description: 'The tag applied to the ASG to mark it for spotnik. Must be unique among all test stacks.'
     Type: String
-    Default: 'spotnik'
 Resources:
 
   # enable connection draining to not to loose user requests on updates / maintenance
@@ -174,4 +173,3 @@ Outputs:
     Description: "Name of the elb"
     Value:
       Ref: elb
-
