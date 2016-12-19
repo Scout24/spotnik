@@ -80,12 +80,22 @@ class Spotnik(object):
         self.asg_client.update_auto_scaling_group(AutoScalingGroupName=self.asg_name, MaxSize=current_max_size + 1)
         self.asg_client.attach_instances(InstanceIds=[spot_instance_id],
                                          AutoScalingGroupName=self.asg_name)
-        self.asg_client.detach_instances(InstanceIds=[instance_id],
-                                         AutoScalingGroupName=self.asg_name,
-                                         ShouldDecrementDesiredCapacity=True)
+        try:
+            self.asg_client.detach_instances(InstanceIds=[instance_id],
+                                             AutoScalingGroupName=self.asg_name,
+                                             ShouldDecrementDesiredCapacity=True)
+        except Exception:
+            self.logger.exception(
+                "Could not detach instance %r, I'll assume it was terminated "
+                "by the ASG. Therefore, I will terminate spot instance %r, "
+                "which was supposed to replace it. Original backtrace:",
+                instance_id, spot_instance_id)
+            self.ec2_client.terminate_instances(InstanceIds=[spot_instance_id])
+        else:
+            self.ec2_client.terminate_instances(InstanceIds=[instance_id])
+
         self.asg_client.update_auto_scaling_group(AutoScalingGroupName=self.asg_name, MaxSize=current_max_size)
 
-        self.ec2_client.terminate_instances(InstanceIds=[instance_id])
 
     def untag_spot_request(self, spot_request):
         # Remove tags so that self.get_pending_spot_resources() does not find

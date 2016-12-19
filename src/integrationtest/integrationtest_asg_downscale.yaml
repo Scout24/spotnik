@@ -1,0 +1,16 @@
+region: eu-west-1
+tags:
+  usecase: spotnik
+  segment: infraops
+stacks:
+  SpotnikTestASGDownscale:
+    template-url: templates/simple_elb_app.yaml
+    parameters:
+        spotnikTagKey: "SpotnikTestASGDownscale"
+        vpcId: "|Ref|vpc.id"
+        subnetIds: "|Ref|vpc.subnets"
+        amiId: 'ami-509dd623'
+        # When removing the instance, Spotnik needs to adjust the desired
+        # capacity. Having maxAsgSize higher than desired capacity should
+        # avoid AWS auto-fixing this issue.
+        maxAsgSize: 5
