@@ -25,7 +25,8 @@ class Spotnik(object):
         return response['Reservations'][0]['Instances'][0]
 
     def describe_launch_configuration(self, launch_config_name):
-        response = self.asg_client.describe_launch_configurations(LaunchConfigurationNames=[launch_config_name])
+        response = self.asg_client.describe_launch_configurations(
+                LaunchConfigurationNames=[launch_config_name])
         return response['LaunchConfigurations'][0]
 
     def get_pending_spot_resources(self):
@@ -77,7 +78,9 @@ class Spotnik(object):
         #   or
         #   - detach the old instance before attaching the new one
         current_max_size = self.asg['MaxSize']
-        self.asg_client.update_auto_scaling_group(AutoScalingGroupName=self.asg_name, MaxSize=current_max_size + 1)
+        self.asg_client.update_auto_scaling_group(
+                AutoScalingGroupName=self.asg_name,
+                MaxSize=current_max_size + 1)
         self.asg_client.attach_instances(InstanceIds=[spot_instance_id],
                                          AutoScalingGroupName=self.asg_name)
         try:
@@ -94,8 +97,8 @@ class Spotnik(object):
         else:
             self.ec2_client.terminate_instances(InstanceIds=[instance_id])
 
-        self.asg_client.update_auto_scaling_group(AutoScalingGroupName=self.asg_name, MaxSize=current_max_size)
-
+        self.asg_client.update_auto_scaling_group(
+                AutoScalingGroupName=self.asg_name, MaxSize=current_max_size)
 
     def untag_spot_request(self, spot_request):
         # Remove tags so that self.get_pending_spot_resources() does not find

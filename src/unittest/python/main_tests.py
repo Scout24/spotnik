@@ -3,7 +3,7 @@ from __future__ import print_function, absolute_import, division
 import time
 import unittest2
 
-from mock import Mock, patch
+from mock import patch
 
 from spotnik.main import main
 

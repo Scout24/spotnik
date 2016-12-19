@@ -7,7 +7,7 @@ import tempfile
 import time
 import unittest2
 import yaml
-from subprocess import check_call, call
+from subprocess import check_call
 
 import spotnik
 from spotnik.main import main
@@ -74,7 +74,8 @@ class SpotnikTestsBase(unittest2.TestCase):
 
         for instance_state in response['InstanceStates']:
             if instance_state['State'] == "InService":
-                print("Instance {InstanceId} is in state {State}: {Description}".format(**instance_state))
+                print("Instance {InstanceId} is in state {State}: "
+                      "{Description}".format(**instance_state))
                 return True
 
         print("ASG is NOT healthy")

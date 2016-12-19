@@ -42,7 +42,8 @@ class SpotnikTests(SpotnikTestsBase):
         else:
             raise Exception("Timed out waiting for Spotnik to attach the new instance")
         _, _, asg_name = self.get_cf_output()
-        asg = self.autoscaling.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])['AutoScalingGroups'][0]
+        asg = self.autoscaling.describe_auto_scaling_groups(
+                AutoScalingGroupNames=[asg_name])['AutoScalingGroups'][0]
         fake_spotnik = mock.Mock()
         fake_spotnik.ec2_client = self.ec2
         on_demand_instances, spot_instances = ReplacementPolicy(asg, fake_spotnik).get_instances()
@@ -51,11 +52,15 @@ class SpotnikTests(SpotnikTestsBase):
         self.assertEqual(len(spot_instances), 1)
         self.assertEqual(spot_instances[0]['InstanceType'], 'm3.medium')
 
-        # Fourth run of spotnik should do nothing because number of ondemand instances would fall below minimum.
+        # Fourth run of spotnik should do nothing because number of ondemand
+        # instances would fall below minimum.
         self.assert_spotnik_request_instances(0)
 
         # configute spotnik to not keep any on demand instances
-        self.autoscaling.delete_tags(Tags=[{'ResourceId': asg_name, 'ResourceType': 'auto-scaling-group','Key': 'spotnik-min-on-demand-instances'}])
+        self.autoscaling.delete_tags(
+                Tags=[{'ResourceId': asg_name,
+                       'ResourceType': 'auto-scaling-group',
+                       'Key': 'spotnik-min-on-demand-instances'}])
         self.assert_spotnik_request_instances(1)
 
         # Second spot instance is attached to ASG and gets untagged.
