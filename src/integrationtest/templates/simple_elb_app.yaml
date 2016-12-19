@@ -163,7 +163,7 @@ Resources:
         -  arn:aws:iam::aws:policy/AmazonEC2ReadOnlyAccess
 Outputs:
   asgName:
-    Description: "ARN of autoscaling group"
+    Description: "Name of the autoscaling group"
     Value:
       Ref: asg
   elbDnsName:
