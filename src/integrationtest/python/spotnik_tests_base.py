@@ -3,8 +3,10 @@ from __future__ import print_function, absolute_import, division
 import boto3
 import os
 import socket
+import tempfile
 import time
 import unittest2
+import yaml
 from subprocess import check_call, call
 
 import spotnik
@@ -23,10 +25,6 @@ class SpotnikTestsBase(unittest2.TestCase):
     def setUpClass(cls):
         cls.ec2 = boto3.client('ec2', region_name=cls.region_name)
         cls.autoscaling = boto3.client('autoscaling', region_name=cls.region_name)
-
-        # Direct our Spotnik to the correct ASG. By convention, the tag is
-        # identical to the name of the stack.
-        spotnik.spotnik.SPOTNIK_TAG_KEY = cls.stack_name
 
     def assert_spotnik_request_instances(self, amount):
         num_requests_before = self.get_num_pending_spot_requests()
@@ -92,8 +90,39 @@ class SpotnikTestsBase(unittest2.TestCase):
 
         return self.is_port22_reachable()
 
+    def _get_current_config(self):
+        with open(self.stack_config) as stack_config:
+            return yaml.safe_load(stack_config)
+
+    def _set_new_config(self, config):
+        dirname = os.path.dirname(self.stack_config)
+        individual_stack_config = tempfile.NamedTemporaryFile(
+                dir=dirname, delete=False, prefix=self.stack_name + "_")
+        yaml.dump(config, stream=individual_stack_config)
+        individual_stack_config.close()
+
+        self.stack_config = individual_stack_config.name
+
+    def create_individual_config(self):
+        config = self._get_current_config()
+
+        new_stack_name = self.stack_name + str(int(time.time()))
+        stack_config = config['stacks'].pop(self.stack_name)
+        stack_config['parameters']['spotnikTagKey'] = new_stack_name
+        config['stacks'][new_stack_name] = stack_config
+        self.stack_name = new_stack_name
+        print("Stack/Tag name for test {}: {}".format(
+                self.__class__.__name__, new_stack_name))
+
+        self._set_new_config(config)
+
+        # Direct our Spotnik to the correct ASG. By convention, the tag is
+        # identical to the name of the stack.
+        spotnik.spotnik.SPOTNIK_TAG_KEY = self.stack_name
+
     def create_application_stack(self):
-        call("cf delete --confirm " + self.stack_config, shell=True)
+        self.create_individual_config()
+
         check_call("cf sync --confirm " + self.stack_config, shell=True)
         counter = 0
         while counter < 300 and not self.is_fully_up_and_running():
@@ -106,6 +135,7 @@ class SpotnikTestsBase(unittest2.TestCase):
 
     def delete_application_stack(self):
         check_call("cf delete --confirm " + self.stack_config, shell=True)
+        os.unlink(self.stack_config)
 
     def get_cf_output(self):
         client = boto3.client('cloudformation', region_name=self.region_name)
