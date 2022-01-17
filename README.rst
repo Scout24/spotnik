@@ -7,6 +7,10 @@
    :target: https://landscape.io/github/ImmobilienScout24/spotnik/master
    :alt: Code Health
 
+=======================================================
+This project is DEPRECATED and not any longer supported
+=======================================================
+
 
 Spotnik
 =========
